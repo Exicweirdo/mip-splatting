@@ -20,7 +20,9 @@ from utils.sh_utils import RGB2SH
 from simple_knn._C import distCUDA2
 from utils.graphics_utils import BasicPointCloud
 from utils.general_utils import strip_symmetric, build_scaling_rotation
+from scene.adan import Adan
 
+USE_ADAN = False
 class GaussianModel:
 
     def setup_functions(self):
@@ -41,7 +43,7 @@ class GaussianModel:
         self.rotation_activation = torch.nn.functional.normalize
 
 
-    def __init__(self, sh_degree : int):
+    def __init__(self, sh_degree : int, use_adan : bool = USE_ADAN):
         self.active_sh_degree = 0
         self.max_sh_degree = sh_degree  
         self._xyz = torch.empty(0)
@@ -56,6 +58,7 @@ class GaussianModel:
         self.optimizer = None
         self.percent_dense = 0
         self.spatial_lr_scale = 0
+        self.use_adan = use_adan
         self.setup_functions()
 
     def capture(self):
@@ -141,7 +144,7 @@ class GaussianModel:
 
     @torch.no_grad()
     def compute_3D_filter(self, cameras):
-        print("Computing 3D filter")
+        # print("Computing 3D filter")
         #TODO consider focal length and image width
         xyz = self.get_xyz
         distance = torch.ones((xyz.shape[0]), device=xyz.device) * 100000.0
@@ -234,8 +237,10 @@ class GaussianModel:
             {'params': [self._scaling], 'lr': training_args.scaling_lr, "name": "scaling"},
             {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"}
         ]
-
-        self.optimizer = torch.optim.Adam(l, lr=0.0, eps=1e-15)
+        if self.use_adan:
+            self.optimizer = Adan(l, lr=0.0, eps=1e-15)
+        else:
+            self.optimizer = torch.optim.Adam(l, lr=0.0, eps=1e-15)
         self.xyz_scheduler_args = get_expon_lr_func(lr_init=training_args.position_lr_init*self.spatial_lr_scale,
                                                     lr_final=training_args.position_lr_final*self.spatial_lr_scale,
                                                     lr_delay_mult=training_args.position_lr_delay_mult,
@@ -380,6 +385,10 @@ class GaussianModel:
                 stored_state = self.optimizer.state.get(group['params'][0], None)
                 stored_state["exp_avg"] = torch.zeros_like(tensor)
                 stored_state["exp_avg_sq"] = torch.zeros_like(tensor)
+                if self.use_adan:
+                    stored_state["exp_avg_diff"] = torch.zeros_like(tensor)
+                    if "neg_pre_grad" in stored_state.keys():
+                        del stored_state["neg_pre_grad"]
 
                 del self.optimizer.state[group['params'][0]]
                 group["params"][0] = nn.Parameter(tensor.requires_grad_(True))
@@ -395,6 +404,10 @@ class GaussianModel:
             if stored_state is not None:
                 stored_state["exp_avg"] = stored_state["exp_avg"][mask]
                 stored_state["exp_avg_sq"] = stored_state["exp_avg_sq"][mask]
+                if self.use_adan:
+                    stored_state["exp_avg_diff"] = stored_state["exp_avg_diff"][mask]
+                    if "neg_pre_grad" in stored_state.keys():
+                        del stored_state["neg_pre_grad"]
 
                 del self.optimizer.state[group['params'][0]]
                 group["params"][0] = nn.Parameter((group["params"][0][mask].requires_grad_(True)))
@@ -433,6 +446,10 @@ class GaussianModel:
 
                 stored_state["exp_avg"] = torch.cat((stored_state["exp_avg"], torch.zeros_like(extension_tensor)), dim=0)
                 stored_state["exp_avg_sq"] = torch.cat((stored_state["exp_avg_sq"], torch.zeros_like(extension_tensor)), dim=0)
+                if self.use_adan:
+                    stored_state["exp_avg_diff"] = torch.cat((stored_state["exp_avg_diff"], torch.zeros_like(extension_tensor)), dim=0)
+                    if "neg_pre_grad" in stored_state.keys():
+                        del stored_state["neg_pre_grad"]
 
                 del self.optimizer.state[group['params'][0]]
                 group["params"][0] = nn.Parameter(torch.cat((group["params"][0], extension_tensor), dim=0).requires_grad_(True))

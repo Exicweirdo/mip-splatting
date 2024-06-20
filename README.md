@@ -29,11 +29,16 @@ We introduce a 3D smoothing filter and a 2D Mip filter for 3D Gaussian Splatting
 </p>
 <br>
 
+# Big Homework Readme (Sihan Wang)
+
+Code modification is contained in `scene/gaussian_model.py` and `train.py`. 
 # Update
 We integrated an improved densification metric proposed in [Gaussian Opacity Fields](https://niujinshuchong.github.io/gaussian-opacity-fields/), which significantly improves the novel view synthesis results, please check the [paper](https://arxiv.org/pdf/2404.10772.pdf) for details. Please download the lastest code and reinstall `diff-gaussian-rasterization` to try it out. 
 
 # Installation
 Clone the repository and create an anaconda environment using
+
+(Some modification is beneficial)
 ```
 git clone git@github.com:autonomousvision/mip-splatting.git
 cd mip-splatting
@@ -41,11 +46,15 @@ cd mip-splatting
 conda create -y -n mip-splatting python=3.8
 conda activate mip-splatting
 
+#!!! cu116 is much more stable, cudatookit-dev with cu113 is lost
+
 pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 -f https://download.pytorch.org/whl/torch_stable.html
 conda install cudatoolkit-dev=11.3 -c conda-forge
 
 pip install -r requirements.txt
 
+# gcc-10 & g++-10 should be installed
+# e.g. CC=/usr/bin/gcc-10; CXX=/usr/bin/g++-10
 pip install submodules/diff-gaussian-rasterization
 pip install submodules/simple-knn/
 ```
@@ -61,6 +70,10 @@ python convert_blender_data.py --blender_dir nerf_synthetic/ --out_dir multi-sca
 Please download the data from the [Mip-NeRF 360](https://jonbarron.info/mipnerf360/) and request the authors for the treehill and flowers scenes.
 
 # Training and Evaluation
+
+**Use scripts/run_bighomework.py to repeat experiments**
+
+**Use scripts/run_nerf_synthetic_stmt.py to repeat baseline**
 ```
 # single-scale training and single-scale testing on NeRF-synthetic dataset
 python scripts/run_nerf_synthetic_stmt.py 
